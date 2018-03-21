@@ -173,19 +173,30 @@ on_session_terminated(_ClientId, _Username, Reason, _Env) ->
 on_message_publish(Message = #mqtt_message{topic = <<"$SYS/", _/binary>>}, _Env) ->
     {ok, Message};
 
+on_message_publish(Message = #mqtt_message{topic = <<"fs/+/o", _/binary>>}, _Env) ->
+    Params = [{topic, Message#mqtt_message.topic},
+    {payload, Message#mqtt_message.payload}],
+    send_redis_request(Params),
+    {ok, Message};
 
-on_message_publish(Message = #mqtt_message{topic = <<"">>}, _Env) ->
+on_message_publish(Message = #mqtt_message{topic = <<"fs/+/s", _/binary>>}, _Env) ->
+    Params = [{topic, Message#mqtt_message.topic},
+    {payload, Message#mqtt_message.payload}],
+    send_redis_request(Params),
+    {ok, Message};
+
+on_message_publish(Message = #mqtt_message{topic = <<"fs/+/e", _/binary>>}, _Env) ->
+    Params = [{topic, Message#mqtt_message.topic},
+    {payload, Message#mqtt_message.payload}],
+    send_redis_request(Params),
+    {ok, Message};
+
+on_message_publish(Message = #mqtt_message{topic = Topic}, {Filter}) ->
     with_filter(fun() ->
-        {FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
-        Params = [{action, message_publish},
-                  {from_client_id, FromClientId},
-                  {from_username, FromUsername},
-                  {topic, Message#mqtt_message.topic},
-                  {qos, Message#mqtt_message.qos},
-                  {retain, Message#mqtt_message.retain},
-                  {payload, Message#mqtt_message.payload},
-                  {ts, emqttd_time:now_secs(Message#mqtt_message.timestamp)}],
-        send_redis_request(Params),
+        %{FromClientId, FromUsername} = format_from(Message#mqtt_message.from),
+        Params = [{topic, Message#mqtt_message.topic},
+                  {payload, Message#mqtt_message.payload}],
+        %send_redis_request(Params),
         {ok, Message}
     end, Message, Topic, Filter).
 
@@ -231,29 +242,29 @@ on_message_acked(ClientId, Username, Message = #mqtt_message{topic = Topic}, {Fi
 %% Internal functions
 %%--------------------------------------------------------------------
 
-push_event_queue(Params) ->
-  ?LOG(debug, "Params: ~p ", [Params]),
-  Params1 = jsx:encode(Params),
-  Key = application:get_env(?APP, key, "event_queue"),
-  ?LOG(debug, "Params1: ~p  key: ~p ", [Params, Key]),
-    case emq_redis_hook_cli:q(["LPUSH", Key, Params1]) of
-      {ok, _} ->
-        ok;
-      {error, Reason} ->
-        ?LOG(error, "Redis lpush error: ~p", [Reason]), ok
-    end.
+% push_event_queue(Params) ->
+%   ?LOG(debug, "Params: ~p ", [Params]),
+%   Params1 = jsx:encode(Params),
+%   Key = application:get_env(?APP, key, "event_queue"),
+%   ?LOG(debug, "Params1: ~p  key: ~p ", [Params, Key]),
+%     case emq_redis_hook_cli:q(["LPUSH", Key, Params1]) of
+%       {ok, _} ->
+%         ok;
+%       {error, Reason} ->
+%         ?LOG(error, "Redis lpush error: ~p", [Reason]), ok
+%     end.
 
-push_state_queue(Params) ->
-    ?LOG(debug, "Params: ~p ", [Params]),
-    Params1 = jsx:encode(Params),
-    Key = application:get_env(?APP, key, "state_queue"),
-    ?LOG(debug, "Params1: ~p  key: ~p ", [Params, Key]),
-      case emq_redis_hook_cli:q(["LPUSH", Key, Params1]) of
-        {ok, _} ->
-          ok;
-        {error, Reason} ->
-          ?LOG(error, "Redis lpush error: ~p", [Reason]), ok
-      end.
+% push_state_queue(Params) ->
+%     ?LOG(debug, "Params: ~p ", [Params]),
+%     Params1 = jsx:encode(Params),
+%     Key = application:get_env(?APP, key, "state_queue"),
+%     ?LOG(debug, "Params1: ~p  key: ~p ", [Params, Key]),
+%       case emq_redis_hook_cli:q(["LPUSH", Key, Params1]) of
+%         {ok, _} ->
+%           ok;
+%         {error, Reason} ->
+%           ?LOG(error, "Redis lpush error: ~p", [Reason]), ok
+%       end.
 
 send_redis_request(Params) ->
   ?LOG(debug, "Params: ~p ", [Params]),
